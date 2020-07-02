@@ -1,0 +1,186 @@
+import requests
+import time
+import xlwt
+
+HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;",
+    "Accept-Language": "zh-CN,zh;q=0.8",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:67.0) Gecko/20100101 Firefox/67.0",
+    'Referer': 'https://gkcx.eol.cn'
+}
+url_specialty = '''https://api.eol.cn/gkcx/api/?uri=apidata/api/gk/special/lists'''
+data = {"access_token": "", "keyword": "", "level1": 1, "level2": "12", "page": 1, "size": 20,
+        "uri": "apidata/api/gk/special/lists"}
+specialty_info = []
+# data['page'] = 1 # 6B9D1B741F701CEEEF5623FC4B5EC453访问不到的页面都会返回这个Md5的值
+# response = requests.post(url_specialty,headers=HEADERS,data=data)
+# print(response.json())
+print('正在记录医学所有的专业')
+for i in (1, 2, 3):
+    print('正在获取第'+str(i)+"页专业信息")
+    data['page'] = i
+    response = requests.post(url_specialty, headers=HEADERS, data=data)
+    time.sleep(0.5)
+    # print(response.json())
+    speicalties = (response.json())['data']['item']  # 获得专业的list
+    for specialty in speicalties:
+        specialty_level1_name = specialty['level2_name']
+        specialty_level2_name = specialty['level3_name']
+        specialty_level3_name = specialty['name']
+        special_id = specialty['special_id']
+        specialty_dict_item = {
+            'special_name_1': specialty_level1_name,
+            'special_name_2': specialty_level2_name,
+            'special_name_3': specialty_level3_name,
+            'special_id': special_id,
+            'name': specialty_level1_name + '大类' + specialty_level2_name + '子类' + specialty_level3_name + '专业'
+        }
+        specialty_info.append(specialty_dict_item)
+
+print('所有专业记录完成，信息如下:')
+for i in specialty_info:
+    print(str(i['name']) + "专业编号为" + str(i['special_id']))
+
+
+# ------------------------------------------专业访问大学的模板,基本数据结构
+# url_specialty_based_university = '''https://api.eol.cn/gkcx/api/?uri=apidata/api/gk/schoolSpecial/lists'''
+# data_university = {"access_token": "", "keyword": "", "page": 1,
+#                    "province_id": "", "request_type": 1, "school_type": "",
+#                    "size": 20, "special_id": "266", "type": "", "uri": "apidata/api/gk/schoolSpecial/lists"}
+# specialty_based_university = []
+# specialty_based_university_unit = {
+#     'specialty_name': 'specialty_name',
+#     'spcialty_id': 'specialty_id',
+#     'schools_id': [],
+#     'schools_name': []
+# }  # 某个专业对应的大学List
+# ---------------------------------------打印测试字段
+# response = requests.post(url_specialty_based_university,headers=HEADERS,data=data_university)
+# item = (response.json())['data']['item']
+# for i in item:
+#     print(str(i['school_id'])+str(i['name']))
+# ------------------------------------
+def search_all_pages(url, data_uni, list_unit):
+    page = 1
+    while True:
+        if page > 10: # 10页以后的学校应该排名也不高了，分数没有啥参考意义
+            break
+        data_uni['page'] = page
+        print('现在正在打印第' + str(page) + '页的内容，请耐心等待:')
+        try:
+            response = requests.post(url, headers=HEADERS, data=data_uni)
+            time.sleep(0.3)
+            item = (response.json())['data']['item']
+            if len(item) > 0:  # 如果还有剩余页面的话
+                for i in item:
+                    list_unit['schools_id'].append(i['school_id'])
+                    list_unit['schools_name'].append(i['name'])
+            else:
+                break
+        except Exception as e:
+            print('获取第'+str(page)+"页的时候出现问题直接跳过:")
+        finally:
+            page = page + 1  # 查看下一页内容
+
+
+# -------------------------------------打印测试
+# specialty_based_university_unit['specialty_name'] = '基础医学专业'
+# specialty_based_university_unit['specialty_id'] = str(226)
+# search_all_pages(url_specialty_based_university, data_university, specialty_based_university_unit)  # 查询第一个专业所有的大学
+# length = len(specialty_based_university_unit['schools_id'])
+# print(specialty_based_university_unit['specialty_name'] + '专业，专业编号为' + specialty_based_university_unit['specialty_id'])
+# print('该专业对应的所有拥有该专业的大学如下：')
+# for i in range(0, length):
+#     print(
+#         str(specialty_based_university_unit['schools_id'][i]) + str(specialty_based_university_unit['schools_name'][i]))
+# ---------------------------------------
+specialty_based_university = []  # 最后每一个专业都应该添加到这个队列中
+for i in specialty_info:  # 现对每一个专业进行上述操作
+    # if i['special_id'] == 267:  # 这里可以控制打印长度
+    #     break
+    specialty_name_str = i['name']
+    specialty_id_str = str(i['special_id'])
+    specialty_based_university_unit = {
+        'specialty_name': specialty_name_str,
+        'specialty_id': specialty_id_str,
+        'schools_id': [],
+        'schools_name': []
+    }  # 某个专业对应的大学List
+    url_specialty_based_university = '''https://api.eol.cn/gkcx/api/?uri=apidata/api/gk/schoolSpecial/lists'''  # 基本网址
+    data_university = {"access_token": "", "keyword": "", "page": 1,
+                       "province_id": "", "request_type": 1, "school_type": "",
+                       "size": 20, "special_id": "266", "type": "", "uri": "apidata/api/gk/schoolSpecial/lists"}  # 模板
+
+    data_university['special_id'] = specialty_id_str
+    print('现在正在查询' + str(specialty_name_str) + str(specialty_id_str) + '专业的所有大学信息，首先打印第一页内容:')
+    search_all_pages(url_specialty_based_university, data_university, specialty_based_university_unit)  # 查询每个专业所有的大学
+    specialty_based_university.append(specialty_based_university_unit)  # 将每个专业添加到队列中
+print('所有专业对应的大学信息已经打印完毕,下面开始展示:')
+for specialty_based_university_unit in specialty_based_university:
+    print(specialty_based_university_unit['specialty_name'] + '专业，专业编号为' + specialty_based_university_unit[
+        'specialty_id'])
+    print('该专业对应的所有拥有该专业的大学如下：')
+    length = len(specialty_based_university_unit['schools_id'])
+    for i in range(0, length):
+        print(
+            str(specialty_based_university_unit['schools_id'][i]) + str(
+                specialty_based_university_unit['schools_name'][i]))
+# 现在将所有的大学放在一个dict当中
+all_universities = {}
+for specialty_based_university_unit in specialty_based_university:
+    length = len(specialty_based_university_unit['schools_id'])
+    for i in range(0, length):
+        all_universities[str(specialty_based_university_unit['schools_id'][i])] = str(
+            specialty_based_university_unit['schools_name'][i])
+
+print('将所有大学放入一个dic后打印出来:')
+print(all_universities)
+wbk = xlwt.Workbook()
+sheet = wbk.add_sheet('sheet 1 ')
+sheet.write(0, 0, '学校名称')
+# sheet.write(0, 1, '2019年最高分')
+sheet.write(0, 1, '2019年最低分')
+# sheet.write(0, 3, '2018年最高分')
+sheet.write(0, 2, '2018年最低分')
+# sheet.write(0, 5, '2017年最高分')
+sheet.write(0, 3, '2017年最低分')
+
+
+
+def deal_with_scores(sheet, row_of_file, info_unit,name):
+    column = 0
+    sheet.write(row_of_file, column, name) # 学校名字载入
+    column = column + 1
+    for i in info_unit:
+        min_num = 999
+        if '1' in i['type']:
+            min_num = float(i['type']['1'])
+        sheet.write(row_of_file,column,min(min_num,max_num))
+        column = column + 1
+
+row = 0  # 标记行数
+
+
+for key, value in all_universities.items():  # id是key ，名字是value
+    row = row + 1
+    HEADERS = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;",
+        "Accept-Language": "zh-CN,zh;q=0.8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:67.0) Gecko/20100101 Firefox/67.0",
+        'Referer': 'https://gkcx.eol.cn'
+    }
+    url_specialty = '''https://static-data.eol.cn/www/2.0/school/''' + key + '''/info.json'''
+    print('正在获取' + value + '近三年的录取信息,请耐心等待')
+    response = requests.get(url_specialty, headers=HEADERS)
+    time.sleep(0.3)
+    print(value + "近三年录取信息如下:")
+    try:
+        info = (response.json())['data']['pro_type_min']['43']
+    except Exception as e:
+        print('获取不到' + value + "信息，请自行查询")  # 这里可以添加异常处理函数
+        # print(e)
+    finally:
+        print(info)
+        deal_with_scores(sheet, row, info, value)
+
+wbk.save('result.xls')
